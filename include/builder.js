@@ -38,6 +38,12 @@ class SiteBuilder {
             await fs.ensureDir(this.outputPath);
             log.push(`Output directory: ${this.outputPath}`);
 
+            // 2.5 Clean up old page folders that no longer exist
+            const cleanupResult = await this.cleanupOldPages(pages);
+            if (cleanupResult.removed.length > 0) {
+                log.push(`Cleaned up old pages: ${cleanupResult.removed.join(', ')}`);
+            }
+
             // 3. Generate each page
             let generatedCount = 0;
             for (const page of pages) {
@@ -287,6 +293,56 @@ class SiteBuilder {
         sitemap += '</urlset>';
 
         await fs.writeFile(path.join(this.outputPath, 'sitemap.xml'), sitemap);
+    }
+
+    /**
+     * Clean up old page folders that no longer exist in database
+     */
+    async cleanupOldPages(pages) {
+        const result = { removed: [], kept: [] };
+
+        // Protected folders that should never be deleted
+        const protectedFolders = new Set(['uploads', 'assets', 'css', 'js', 'images', 'fonts', 'media']);
+
+        // Get all valid page slugs (non-empty slugs that create folders)
+        const validSlugs = new Set(
+            pages
+                .map(p => p.slug)
+                .filter(slug => slug && slug !== '' && slug !== 'index' && slug !== '/')
+        );
+
+        try {
+            // Read all items in output directory
+            const items = await fs.readdir(this.outputPath);
+
+            for (const item of items) {
+                const itemPath = path.join(this.outputPath, item);
+                const stat = await fs.stat(itemPath);
+
+                // Only check directories (not files like index.html, sitemap.xml)
+                if (stat.isDirectory()) {
+                    // Skip protected folders
+                    if (protectedFolders.has(item.toLowerCase())) {
+                        result.kept.push(item);
+                        continue;
+                    }
+
+                    // If folder matches a current page slug, keep it
+                    if (validSlugs.has(item)) {
+                        result.kept.push(item);
+                    } else {
+                        // Remove orphaned folder
+                        await fs.remove(itemPath);
+                        result.removed.push(item);
+                        console.log(`Removed old page folder: ${item}`);
+                    }
+                }
+            }
+        } catch (error) {
+            console.error('Error cleaning up old pages:', error.message);
+        }
+
+        return result;
     }
 }
 
