@@ -1,0 +1,140 @@
+doctype html
+html(lang="en")
+    head
+        meta(charset="UTF-8")
+        meta(name="viewport" content="width=device-width, initial-scale=1.0")
+        title= `${site.name} - CMS`
+        link(href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet")
+        link(href="https://fonts.googleapis.com/icon?family=Material+Icons" rel="stylesheet")
+        style.
+            .sidebar {
+                min-height: 100vh;
+                background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            }
+            .sidebar .nav-link {
+                color: rgba(255, 255, 255, 0.8);
+                border-radius: 8px;
+                margin: 2px 0;
+            }
+            .sidebar .nav-link:hover,
+            .sidebar .nav-link.active {
+                color: white;
+                background: rgba(255, 255, 255, 0.1);
+            }
+            .main-content {
+                background: #f8f9fa;
+                min-height: 100vh;
+            }
+    body
+        .container-fluid
+            .row
+                //- Sidebar
+                nav.col-md-3.col-lg-2.sidebar.p-3
+                    .d-flex.align-items-center.mb-4
+                        span.material-icons.text-white.me-2 language
+                        h5.text-white.mb-0= site.name
+
+                    ul.nav.flex-column
+                        li.nav-item
+                            a.nav-link.active(href="/")
+                                span.material-icons.me-2 dashboard
+                                | Dashboard
+                        li.nav-item
+                            a.nav-link(href="/pages")
+                                span.material-icons.me-2 article
+                                | Pages
+                        li.nav-item
+                            a.nav-link(href="/layouts")
+                                span.material-icons.me-2 view_quilt
+                                | Layouts
+                        li.nav-item
+                            a.nav-link(href="/components")
+                                span.material-icons.me-2 widgets
+                                | Components
+                        li.nav-item
+                            a.nav-link(href="/media")
+                                span.material-icons.me-2 perm_media
+                                | Media
+                        li.nav-item
+                            a.nav-link(href="/collections")
+                                span.material-icons.me-2 inventory_2
+                                | Collections
+                        li.nav-item.mt-4
+                            a.nav-link(href="/build")
+                                span.material-icons.me-2 build
+                                | Build Site
+
+                //- Main Content
+                main.col-md-9.col-lg-10.main-content.p-4
+                    h2.mb-4 Dashboard
+
+                    .row.g-4
+                        .col-md-3
+                            .card.border-0.shadow-sm
+                                .card-body.text-center
+                                    span.material-icons.text-primary(style="font-size: 48px") article
+                                    h3#pageCount.mt-2 0
+                                    p.text-muted Pages
+                        .col-md-3
+                            .card.border-0.shadow-sm
+                                .card-body.text-center
+                                    span.material-icons.text-success(style="font-size: 48px") view_quilt
+                                    h3#layoutCount.mt-2 0
+                                    p.text-muted Layouts
+                        .col-md-3
+                            .card.border-0.shadow-sm
+                                .card-body.text-center
+                                    span.material-icons.text-info(style="font-size: 48px") widgets
+                                    h3#componentCount.mt-2 0
+                                    p.text-muted Components
+                        .col-md-3
+                            .card.border-0.shadow-sm
+                                .card-body.text-center
+                                    span.material-icons.text-warning(style="font-size: 48px") perm_media
+                                    h3#mediaCount.mt-2 0
+                                    p.text-muted Media Files
+
+                    .card.border-0.shadow-sm.mt-4
+                        .card-header.bg-white
+                            h5.mb-0 Site Information
+                        .card-body
+                            .row
+                                .col-md-6
+                                    p
+                                        strong Site Name:
+                                        span= site.name
+                                    p
+                                        strong Site Code:
+                                        span= site.siteCode
+                                    p
+                                        strong Database:
+                                        span= site.databaseName
+                                .col-md-6
+                                    p
+                                        strong Frontend URL:
+                                        a(href=`https://${site.siteCode}.mj-cms.local` target="_blank")= `${site.siteCode}.mj-cms.local`
+                                    p
+                                        strong CMS URL:
+                                        a(href=`http://${site.siteCode}.mj-cms.app` target="_blank")= `${site.siteCode}.mj-cms.app`
+                                    p
+                                        strong Status:
+                                        span.badge.bg-success= site.status || 'active'
+
+        script(src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js")
+        script.
+            // Load stats
+            async function loadStats() {
+                try {
+                    const [pages, layouts, components] = await Promise.all([
+                        fetch('/api/pages').then(r => r.json()),
+                        fetch('/api/layouts').then(r => r.json()),
+                        fetch('/api/components').then(r => r.json())
+                    ]);
+                    document.getElementById('pageCount').textContent = pages.length || 0;
+                    document.getElementById('layoutCount').textContent = layouts.length || 0;
+                    document.getElementById('componentCount').textContent = components.length || 0;
+                } catch (e) {
+                    console.error('Error loading stats:', e);
+                }
+            }
+            loadStats();

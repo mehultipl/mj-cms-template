@@ -1,0 +1,57 @@
+extends layout
+
+block content
+    .d-flex.justify-content-between.align-items-center.mb-4
+        h2 Components
+        a.btn.btn-primary(href="/components/new")
+            span.material-icons.me-1 add
+            | New Component
+
+    .row#componentsList
+        .col-12.text-center
+            p.text-muted Loading...
+
+block scripts
+    script.
+        async function loadComponents() {
+            try {
+                const response = await fetch('/api/components');
+                const components = await response.json();
+                const container = document.getElementById('componentsList');
+
+                if (components.length === 0) {
+                    container.innerHTML = '<div class="col-12 text-center"><p class="text-muted">No components found. Create your first component!</p></div>';
+                    return;
+                }
+
+                container.innerHTML = components.map(comp => `
+                    <div class="col-md-4 mb-4">
+                        <div class="card border-0 shadow-sm h-100">
+                            <div class="card-body">
+                                <h5 class="card-title">${comp.name || 'Untitled'}</h5>
+                                <p class="card-text text-muted">${comp.description || 'No description'}</p>
+                                <span class="badge bg-secondary">${comp.category || 'general'}</span>
+                            </div>
+                            <div class="card-footer bg-white border-0">
+                                <a href="/components/${comp.id}" class="btn btn-sm btn-outline-primary">Edit</a>
+                                <button onclick="deleteComponent('${comp.id}')" class="btn btn-sm btn-outline-danger">Delete</button>
+                            </div>
+                        </div>
+                    </div>
+                `).join('');
+            } catch (error) {
+                console.error('Error loading components:', error);
+            }
+        }
+
+        async function deleteComponent(id) {
+            if (!confirm('Delete this component?')) return;
+            try {
+                await fetch(`/api/components/${id}`, { method: 'DELETE' });
+                loadComponents();
+            } catch (error) {
+                alert('Error deleting component');
+            }
+        }
+
+        loadComponents();

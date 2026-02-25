@@ -1,0 +1,23 @@
+# Dependencies
+node_modules/
+
+# Config (generated per-site)
+config.json
+
+# Uploads (site-specific)
+uploads/*
+!uploads/.gitkeep
+
+# Logs
+*.log
+logs/
+
+# OS
+.DS_Store
+Thumbs.db
+
+# IDE
+.idea/
+.vscode/
+*.swp
+*.swo

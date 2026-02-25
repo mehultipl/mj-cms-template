@@ -1,0 +1,161 @@
+extends layout
+
+block content
+    .d-flex.justify-content-between.align-items-center.mb-4
+        h2#formTitle New Page
+        .btn-group
+            button.btn.btn-outline-secondary(onclick="history.back()")
+                span.material-icons.me-1 arrow_back
+                | Back
+            button.btn.btn-primary#saveBtn(onclick="savePage()")
+                span.material-icons.me-1 save
+                | Save
+
+    .row
+        .col-md-8
+            .card.border-0.shadow-sm.mb-4
+                .card-body
+                    .mb-3
+                        label.form-label Title
+                        input.form-control#title(type="text" placeholder="Page title")
+                    .mb-3
+                        label.form-label Slug
+                        .input-group
+                            span.input-group-text /
+                            input.form-control#slug(type="text" placeholder="page-url")
+                    .mb-3
+                        label.form-label Content
+                        textarea#content
+
+            .card.border-0.shadow-sm
+                .card-header.bg-white
+                    h6.mb-0 SEO Settings
+                .card-body
+                    .mb-3
+                        label.form-label Meta Title
+                        input.form-control#metaTitle(type="text")
+                    .mb-3
+                        label.form-label Meta Description
+                        textarea.form-control#metaDescription(rows="2")
+
+        .col-md-4
+            .card.border-0.shadow-sm.mb-4
+                .card-header.bg-white
+                    h6.mb-0 Page Settings
+                .card-body
+                    .mb-3
+                        label.form-label Status
+                        select.form-select#status
+                            option(value="draft") Draft
+                            option(value="published") Published
+                    .mb-3
+                        label.form-label Layout
+                        select.form-select#layout
+                            option(value="default") Default
+                    .mb-3
+                        label.form-label Template
+                        select.form-select#template
+                            option(value="") None
+                            option(value="home") Home
+                            option(value="about") About
+                            option(value="contact") Contact
+
+block scripts
+    script.
+        let editor;
+        let pageId = '#{pageId || ""}';
+
+        document.addEventListener('DOMContentLoaded', function() {
+            editor = CodeMirror.fromTextArea(document.getElementById('content'), {
+                mode: 'htmlmixed',
+                lineNumbers: true,
+                theme: 'default'
+            });
+
+            // Auto-generate slug from title
+            document.getElementById('title').addEventListener('input', function() {
+                if (!pageId) {
+                    document.getElementById('slug').value = this.value
+                        .toLowerCase()
+                        .replace(/[^a-z0-9]+/g, '-')
+                        .replace(/^-|-$/g, '');
+                }
+            });
+
+            // Load layouts
+            loadLayouts();
+
+            // Load page if editing
+            if (pageId) {
+                loadPage(pageId);
+                document.getElementById('formTitle').textContent = 'Edit Page';
+            }
+        });
+
+        async function loadLayouts() {
+            try {
+                const response = await fetch('/api/layouts');
+                const layouts = await response.json();
+                const select = document.getElementById('layout');
+                layouts.forEach(layout => {
+                    const option = document.createElement('option');
+                    option.value = layout.id;
+                    option.textContent = layout.name;
+                    select.appendChild(option);
+                });
+            } catch (error) {
+                console.error('Error loading layouts:', error);
+            }
+        }
+
+        async function loadPage(id) {
+            try {
+                const response = await fetch(`/api/pages/${id}`);
+                const page = await response.json();
+
+                document.getElementById('title').value = page.title || '';
+                document.getElementById('slug').value = page.slug || '';
+                editor.setValue(page.content || '');
+                document.getElementById('status').value = page.status || 'draft';
+                document.getElementById('layout').value = page.layout || 'default';
+                document.getElementById('template').value = page.template || '';
+                document.getElementById('metaTitle').value = page.metaTitle || '';
+                document.getElementById('metaDescription').value = page.metaDescription || '';
+            } catch (error) {
+                console.error('Error loading page:', error);
+                alert('Error loading page');
+            }
+        }
+
+        async function savePage() {
+            const data = {
+                title: document.getElementById('title').value,
+                slug: document.getElementById('slug').value,
+                content: editor.getValue(),
+                status: document.getElementById('status').value,
+                layout: document.getElementById('layout').value,
+                template: document.getElementById('template').value,
+                metaTitle: document.getElementById('metaTitle').value,
+                metaDescription: document.getElementById('metaDescription').value
+            };
+
+            try {
+                const url = pageId ? `/api/pages/${pageId}` : '/api/pages';
+                const method = pageId ? 'PUT' : 'POST';
+
+                const response = await fetch(url, {
+                    method: method,
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify(data)
+                });
+
+                if (response.ok) {
+                    window.location.href = '/pages';
+                } else {
+                    alert('Error saving page');
+                }
+            } catch (error) {
+                console.error('Error saving page:', error);
+                alert('Error saving page');
+            }
+        }

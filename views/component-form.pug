@@ -1,0 +1,108 @@
+extends layout
+
+block content
+    .d-flex.justify-content-between.align-items-center.mb-4
+        h2#formTitle New Component
+        .btn-group
+            button.btn.btn-outline-secondary(onclick="history.back()")
+                span.material-icons.me-1 arrow_back
+                | Back
+            button.btn.btn-primary(onclick="saveComponent()")
+                span.material-icons.me-1 save
+                | Save
+
+    .row
+        .col-md-8
+            .card.border-0.shadow-sm
+                .card-body
+                    .mb-3
+                        label.form-label Name
+                        input.form-control#name(type="text" placeholder="Component name")
+                    .mb-3
+                        label.form-label Description
+                        input.form-control#description(type="text")
+                    .mb-3
+                        label.form-label HTML
+                        textarea#htmlContent
+                    .mb-3
+                        label.form-label CSS
+                        textarea#cssContent
+                    .mb-3
+                        label.form-label JavaScript
+                        textarea#jsContent
+
+        .col-md-4
+            .card.border-0.shadow-sm
+                .card-header.bg-white
+                    h6.mb-0 Settings
+                .card-body
+                    .mb-3
+                        label.form-label Category
+                        select.form-select#category
+                            option(value="general") General
+                            option(value="header") Header
+                            option(value="footer") Footer
+                            option(value="navigation") Navigation
+                            option(value="content") Content
+                            option(value="form") Form
+
+block scripts
+    script.
+        let htmlEditor, cssEditor, jsEditor;
+        let componentId = '#{componentId || ""}';
+
+        document.addEventListener('DOMContentLoaded', function() {
+            htmlEditor = CodeMirror.fromTextArea(document.getElementById('htmlContent'), {
+                mode: 'htmlmixed', lineNumbers: true
+            });
+            cssEditor = CodeMirror.fromTextArea(document.getElementById('cssContent'), {
+                mode: 'css', lineNumbers: true
+            });
+            jsEditor = CodeMirror.fromTextArea(document.getElementById('jsContent'), {
+                mode: 'javascript', lineNumbers: true
+            });
+
+            if (componentId) {
+                loadComponent(componentId);
+                document.getElementById('formTitle').textContent = 'Edit Component';
+            }
+        });
+
+        async function loadComponent(id) {
+            try {
+                const response = await fetch(`/api/components/${id}`);
+                const comp = await response.json();
+                document.getElementById('name').value = comp.name || '';
+                document.getElementById('description').value = comp.description || '';
+                document.getElementById('category').value = comp.category || 'general';
+                htmlEditor.setValue(comp.html || '');
+                cssEditor.setValue(comp.css || '');
+                jsEditor.setValue(comp.js || '');
+            } catch (error) {
+                console.error('Error:', error);
+            }
+        }
+
+        async function saveComponent() {
+            const data = {
+                name: document.getElementById('name').value,
+                description: document.getElementById('description').value,
+                category: document.getElementById('category').value,
+                html: htmlEditor.getValue(),
+                css: cssEditor.getValue(),
+                js: jsEditor.getValue()
+            };
+
+            try {
+                const url = componentId ? `/api/components/${componentId}` : '/api/components';
+                const method = componentId ? 'PUT' : 'POST';
+                const response = await fetch(url, {
+                    method, headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify(data)
+                });
+                if (response.ok) window.location.href = '/components';
+                else alert('Error saving');
+            } catch (error) {
+                alert('Error saving');
+            }
+        }

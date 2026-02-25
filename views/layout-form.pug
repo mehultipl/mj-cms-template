@@ -1,0 +1,100 @@
+extends layout
+
+block content
+    .d-flex.justify-content-between.align-items-center.mb-4
+        h2#formTitle New Layout
+        .btn-group
+            button.btn.btn-outline-secondary(onclick="history.back()")
+                span.material-icons.me-1 arrow_back
+                | Back
+            button.btn.btn-primary(onclick="saveLayout()")
+                span.material-icons.me-1 save
+                | Save
+
+    .row
+        .col-md-8
+            .card.border-0.shadow-sm
+                .card-body
+                    .mb-3
+                        label.form-label Name
+                        input.form-control#name(type="text" placeholder="Layout name")
+                    .mb-3
+                        label.form-label Description
+                        input.form-control#description(type="text" placeholder="Layout description")
+                    .mb-3
+                        label.form-label HTML Template
+                        textarea#htmlContent
+                    .mb-3
+                        label.form-label CSS Styles
+                        textarea#cssContent
+
+        .col-md-4
+            .card.border-0.shadow-sm
+                .card-header.bg-white
+                    h6.mb-0 Help
+                .card-body
+                    p.text-muted Use <code>{{content}}</code> placeholder for page content
+                    p.text-muted Use <code>{{title}}</code> for page title
+                    p.text-muted Use <code>{{site.name}}</code> for site name
+
+block scripts
+    script.
+        let htmlEditor, cssEditor;
+        let layoutId = '#{layoutId || ""}';
+
+        document.addEventListener('DOMContentLoaded', function() {
+            htmlEditor = CodeMirror.fromTextArea(document.getElementById('htmlContent'), {
+                mode: 'htmlmixed',
+                lineNumbers: true
+            });
+
+            cssEditor = CodeMirror.fromTextArea(document.getElementById('cssContent'), {
+                mode: 'css',
+                lineNumbers: true
+            });
+
+            if (layoutId) {
+                loadLayout(layoutId);
+                document.getElementById('formTitle').textContent = 'Edit Layout';
+            }
+        });
+
+        async function loadLayout(id) {
+            try {
+                const response = await fetch(`/api/layouts/${id}`);
+                const layout = await response.json();
+                document.getElementById('name').value = layout.name || '';
+                document.getElementById('description').value = layout.description || '';
+                htmlEditor.setValue(layout.html || '');
+                cssEditor.setValue(layout.css || '');
+            } catch (error) {
+                console.error('Error loading layout:', error);
+            }
+        }
+
+        async function saveLayout() {
+            const data = {
+                name: document.getElementById('name').value,
+                description: document.getElementById('description').value,
+                html: htmlEditor.getValue(),
+                css: cssEditor.getValue()
+            };
+
+            try {
+                const url = layoutId ? `/api/layouts/${layoutId}` : '/api/layouts';
+                const method = layoutId ? 'PUT' : 'POST';
+                const response = await fetch(url, {
+                    method: method,
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify(data)
+                });
+
+                if (response.ok) {
+                    window.location.href = '/layouts';
+                } else {
+                    alert('Error saving layout');
+                }
+            } catch (error) {
+                alert('Error saving layout');
+            }
+        }

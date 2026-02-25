@@ -1,0 +1,91 @@
+extends layout
+
+block content
+    h2.mb-4 Build Site
+
+    .row
+        .col-md-6
+            .card.border-0.shadow-sm.mb-4
+                .card-header.bg-white
+                    h5.mb-0 Build Options
+                .card-body
+                    .form-check.mb-3
+                        input.form-check-input#minifyHtml(type="checkbox" checked)
+                        label.form-check-label(for="minifyHtml") Minify HTML
+                    .form-check.mb-3
+                        input.form-check-input#minifyCss(type="checkbox" checked)
+                        label.form-check-label(for="minifyCss") Minify CSS
+                    .form-check.mb-3
+                        input.form-check-input#minifyJs(type="checkbox" checked)
+                        label.form-check-label(for="minifyJs") Minify JavaScript
+                    .form-check.mb-3
+                        input.form-check-input#optimizeImages(type="checkbox" checked)
+                        label.form-check-label(for="optimizeImages") Optimize Images
+
+                    button.btn.btn-primary.w-100#buildBtn(onclick="startBuild()")
+                        span.material-icons.me-1 build
+                        | Build Site
+
+        .col-md-6
+            .card.border-0.shadow-sm
+                .card-header.bg-white
+                    h5.mb-0 Build Log
+                .card-body
+                    pre#buildLog.bg-dark.text-light.p-3(style="height: 300px; overflow-y: auto; font-size: 12px;") Click "Build Site" to start...
+
+    .card.border-0.shadow-sm.mt-4
+        .card-header.bg-white
+            h5.mb-0 Site Info
+        .card-body
+            .row
+                .col-md-6
+                    p
+                        strong Frontend URL:
+                        a(href=`https://${site.siteCode}.mj-cms.local` target="_blank")= ` https://${site.siteCode}.mj-cms.local`
+                .col-md-6
+                    p
+                        strong Build Output:
+                        code= ` E:/xampp8.2/htdocs/sites/${site.siteCode}`
+
+block scripts
+    script.
+        async function startBuild() {
+            const btn = document.getElementById('buildBtn');
+            const log = document.getElementById('buildLog');
+
+            btn.disabled = true;
+            btn.innerHTML = '<span class="spinner-border spinner-border-sm me-1"></span> Building...';
+
+            log.textContent = 'Starting build...\n';
+
+            const options = {
+                minifyHtml: document.getElementById('minifyHtml').checked,
+                minifyCss: document.getElementById('minifyCss').checked,
+                minifyJs: document.getElementById('minifyJs').checked,
+                optimizeImages: document.getElementById('optimizeImages').checked
+            };
+
+            try {
+                const response = await fetch('/api/build', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify(options)
+                });
+
+                const result = await response.json();
+
+                if (result.success) {
+                    log.textContent += '\n[SUCCESS] Build completed!\n';
+                    log.textContent += `Output: ${result.outputPath || 'public_html'}\n`;
+                    log.textContent += `Files: ${result.filesGenerated || 0}\n`;
+                    log.textContent += '\nSite is ready at: https://#{site.siteCode}.mj-cms.local';
+                } else {
+                    log.textContent += '\n[ERROR] Build failed: ' + (result.error || 'Unknown error');
+                }
+            } catch (error) {
+                log.textContent += '\n[ERROR] ' + error.message;
+            }
+
+            btn.disabled = false;
+            btn.innerHTML = '<span class="material-icons me-1">build</span> Build Site';
+        }

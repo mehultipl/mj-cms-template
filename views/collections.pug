@@ -1,0 +1,110 @@
+extends layout
+
+block content
+    .d-flex.justify-content-between.align-items-center.mb-4
+        h2 Collections
+        button.btn.btn-primary(onclick="showCreateModal()")
+            span.material-icons.me-1 add
+            | New Collection
+
+    .row#collectionsList
+        .col-12.text-center
+            p.text-muted Loading...
+
+    //- Create Modal
+    .modal.fade#createModal(tabindex="-1")
+        .modal-dialog
+            .modal-content
+                .modal-header
+                    h5.modal-title New Collection
+                    button.btn-close(data-bs-dismiss="modal")
+                .modal-body
+                    .mb-3
+                        label.form-label Name
+                        input.form-control#collectionName(type="text" placeholder="Collection name")
+                    .mb-3
+                        label.form-label Slug
+                        input.form-control#collectionSlug(type="text" placeholder="collection-slug")
+                    .mb-3
+                        label.form-label Description
+                        textarea.form-control#collectionDesc(rows="2")
+                .modal-footer
+                    button.btn.btn-secondary(data-bs-dismiss="modal") Cancel
+                    button.btn.btn-primary(onclick="createCollection()") Create
+
+block scripts
+    script.
+        let modal;
+
+        document.addEventListener('DOMContentLoaded', function() {
+            modal = new bootstrap.Modal(document.getElementById('createModal'));
+            loadCollections();
+        });
+
+        function showCreateModal() {
+            document.getElementById('collectionName').value = '';
+            document.getElementById('collectionSlug').value = '';
+            document.getElementById('collectionDesc').value = '';
+            modal.show();
+        }
+
+        async function loadCollections() {
+            try {
+                const response = await fetch('/api/collections');
+                const collections = await response.json();
+                const container = document.getElementById('collectionsList');
+
+                if (collections.length === 0) {
+                    container.innerHTML = '<div class="col-12 text-center"><p class="text-muted">No collections. Create your first collection!</p></div>';
+                    return;
+                }
+
+                container.innerHTML = collections.map(col => `
+                    <div class="col-md-4 mb-4">
+                        <div class="card border-0 shadow-sm h-100">
+                            <div class="card-body">
+                                <h5>${col.name}</h5>
+                                <p class="text-muted small">${col.description || 'No description'}</p>
+                                <code>/${col.slug}</code>
+                            </div>
+                            <div class="card-footer bg-white">
+                                <a href="/collections/${col.id}/items" class="btn btn-sm btn-outline-primary">View Items</a>
+                                <button onclick="deleteCollection('${col.id}')" class="btn btn-sm btn-outline-danger">Delete</button>
+                            </div>
+                        </div>
+                    </div>
+                `).join('');
+            } catch (error) {
+                console.error('Error:', error);
+            }
+        }
+
+        async function createCollection() {
+            const data = {
+                name: document.getElementById('collectionName').value,
+                slug: document.getElementById('collectionSlug').value,
+                description: document.getElementById('collectionDesc').value
+            };
+
+            try {
+                await fetch('/api/collections', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify(data)
+                });
+                modal.hide();
+                loadCollections();
+            } catch (error) {
+                alert('Error creating collection');
+            }
+        }
+
+        async function deleteCollection(id) {
+            if (!confirm('Delete this collection and all its items?')) return;
+            try {
+                await fetch(`/api/collections/${id}`, { method: 'DELETE' });
+                loadCollections();
+            } catch (error) {
+                alert('Error');
+            }
+        }

@@ -1,0 +1,7 @@
+{
+    "siteCode": "your-site-code",
+    "siteName": "Your Site Name",
+    "adminUrl": "http://localhost:3000",
+    "apiKey": "",
+    "port": 4001
+}
