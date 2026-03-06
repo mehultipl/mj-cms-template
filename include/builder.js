@@ -42,6 +42,10 @@ class SiteBuilder {
             const layouts = await this.db.collection('layouts').find({ enabled: true }).toArray();
             const components = await this.db.collection('components').find({ enabled: true }).toArray();
 
+            // Load theme settings if they exist
+            const themeDoc = await this.db.collection('settings').findOne({ type: 'theme' });
+            this.theme = themeDoc?.data || this.getDefaultTheme();
+
             log.push(`Found ${pages.length} pages, ${layouts.length} layouts, ${components.length} components`);
 
             // 2. Ensure output directory exists
@@ -129,8 +133,13 @@ class SiteBuilder {
     /**
      * Compile style based on language (css/stylus)
      */
-    compileStyle(source, styleLang) {
+    compileStyle(source, styleLang, data) {
         if (!source) return '';
+
+        // Replace {{placeholders}} BEFORE Stylus compilation
+        if (data) {
+            source = this.replacePlaceholders(source, data);
+        }
 
         if (styleLang === 'stylus' && stylus) {
             try {
@@ -155,6 +164,22 @@ class SiteBuilder {
     }
 
     /**
+     * Get default theme values
+     */
+    getDefaultTheme() {
+        return {
+            primaryColor: '#007bff',
+            secondaryColor: '#6c757d',
+            bodyColor: '#333333',
+            blackColor: '#000000',
+            whiteColor: '#ffffff',
+            hoverColor: '#0056b3',
+            headerFont: '"Helvetica Neue", Arial, sans-serif',
+            fontTheme: '"Helvetica Neue", Arial, sans-serif'
+        };
+    }
+
+    /**
      * Generate a single page
      */
     async generatePage(page, layouts, components) {
@@ -164,6 +189,12 @@ class SiteBuilder {
         // Build page data for templates
         const data = {
             site: this.site,
+            // Alias for backward compatibility with templates using 'business'
+            business: {
+                siteName: this.site.name,
+                ...this.site
+            },
+            theme: this.theme || this.getDefaultTheme(),
             page: {
                 title: page.title,
                 slug: page.slug,
@@ -222,13 +253,13 @@ class SiteBuilder {
         if (layout && (layout.style || layout.css)) {
             const layoutStyle = layout.style || layout.css || '';
             const layoutStyleLang = layout.styleLang || 'css';
-            combinedStyle += this.compileStyle(layoutStyle, layoutStyleLang);
+            combinedStyle += this.compileStyle(layoutStyle, layoutStyleLang, data);
         }
 
         // Page style
         if (page.style) {
             const pageStyleLang = page.styleLang || 'css';
-            const pageStyle = this.compileStyle(page.style, pageStyleLang);
+            const pageStyle = this.compileStyle(page.style, pageStyleLang, data);
             combinedStyle += '\n' + pageStyle;
         }
 
