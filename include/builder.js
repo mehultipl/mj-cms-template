@@ -1,11 +1,21 @@
 /**
  * Site Builder - Generates static HTML from CMS content
+ * Supports HTML/Pug for markup and CSS/Stylus for styles
  * Outputs to frontend site folder
  */
 
 const fs = require('fs-extra');
 const path = require('path');
 const pug = require('pug');
+
+// Try to load stylus (optional dependency)
+let stylus;
+try {
+    stylus = require('stylus');
+} catch (e) {
+    stylus = null;
+    console.log('Stylus not installed - CSS only mode');
+}
 
 class SiteBuilder {
     constructor(db, site) {
@@ -53,6 +63,7 @@ class SiteBuilder {
                     generatedCount++;
                 } catch (err) {
                     log.push(`Error generating ${page.title}: ${err.message}`);
+                    console.error(`Error generating ${page.title}:`, err);
                 }
             }
 
@@ -96,70 +107,172 @@ class SiteBuilder {
     }
 
     /**
+     * Compile markup based on language (html/pug)
+     */
+    compileMarkup(source, lang, data) {
+        if (!source) return '';
+
+        if (lang === 'pug') {
+            try {
+                return pug.render(source, { ...data, pretty: true });
+            } catch (e) {
+                console.error('Pug compilation error:', e.message);
+                // Return source with error comment
+                return `<!-- Pug Error: ${e.message} -->\n${source}`;
+            }
+        }
+
+        // HTML - just return as is, but process placeholders
+        return source;
+    }
+
+    /**
+     * Compile style based on language (css/stylus)
+     */
+    compileStyle(source, styleLang) {
+        if (!source) return '';
+
+        if (styleLang === 'stylus' && stylus) {
+            try {
+                let css = '';
+                stylus(source).render((err, result) => {
+                    if (err) {
+                        console.error('Stylus compilation error:', err.message);
+                        css = `/* Stylus Error: ${err.message} */\n${source}`;
+                    } else {
+                        css = result;
+                    }
+                });
+                return css;
+            } catch (e) {
+                console.error('Stylus compilation error:', e.message);
+                return `/* Stylus Error: ${e.message} */\n${source}`;
+            }
+        }
+
+        // CSS - return as is
+        return source;
+    }
+
+    /**
      * Generate a single page
      */
     async generatePage(page, layouts, components) {
         // Find layout
         const layout = layouts.find(l => l.id === page.layout) || null;
 
-        // Build page data
+        // Build page data for templates
         const data = {
             site: this.site,
             page: {
                 title: page.title,
                 slug: page.slug,
-                content: page.content || '',
+                body: '', // Will be set after compiling page body
+                content: page.body || page.content || '',
                 metaTitle: page.metaTitle || page.title,
                 metaDescription: page.metaDescription || ''
             }
         };
 
-        // Generate HTML
+        // Compile page body/content
+        const pageMarkup = page.body || page.content || '';
+        const pageLang = page.lang || 'html';
+        let pageBody = this.compileMarkup(pageMarkup, pageLang, data);
+
+        // Process components in page body
+        pageBody = this.processComponents(pageBody, components, data);
+
+        // Replace placeholders in page body
+        pageBody = this.replacePlaceholders(pageBody, data);
+
+        // Update data.page.body with compiled content
+        data.page.body = pageBody;
+
+        // Generate final HTML
         let html;
-        if (layout && layout.html) {
+        if (layout && (layout.body || layout.html)) {
             // Use layout template
-            html = this.renderTemplate(layout.html, data);
-            // Replace {{content}} placeholder with page content
-            html = html.replace(/\{\{\s*content\s*\}\}/gi, page.content || '');
-            html = html.replace(/\{\{\s*page\.content\s*\}\}/gi, page.content || '');
+            const layoutMarkup = layout.body || layout.html || '';
+            const layoutLang = layout.lang || 'html';
+
+            // Compile layout
+            html = this.compileMarkup(layoutMarkup, layoutLang, data);
+
+            // Replace content placeholders with page body
+            html = html.replace(/!\{page\.body\}/gi, pageBody);
+            html = html.replace(/!\{content\}/gi, pageBody);
+            html = html.replace(/\{\{\s*content\s*\}\}/gi, pageBody);
+            html = html.replace(/\{\{\s*page\.body\s*\}\}/gi, pageBody);
+            html = html.replace(/\{\{\s*page\.content\s*\}\}/gi, pageBody);
         } else {
-            // Use default template
-            html = this.getDefaultTemplate(data);
+            // Use default template with page body
+            html = this.getDefaultTemplate(data, pageBody);
         }
 
-        // Replace data placeholders
+        // Replace remaining placeholders
         html = this.replacePlaceholders(html, data);
 
-        // Process components
+        // Process any remaining components
         html = this.processComponents(html, components, data);
+
+        // Compile styles
+        let combinedStyle = '';
+
+        // Layout style
+        if (layout && (layout.style || layout.css)) {
+            const layoutStyle = layout.style || layout.css || '';
+            const layoutStyleLang = layout.styleLang || 'css';
+            combinedStyle += this.compileStyle(layoutStyle, layoutStyleLang);
+        }
+
+        // Page style
+        if (page.style) {
+            const pageStyleLang = page.styleLang || 'css';
+            const pageStyle = this.compileStyle(page.style, pageStyleLang);
+            combinedStyle += '\n' + pageStyle;
+        }
+
+        // Combine scripts
+        let combinedScript = '';
+        if (layout && layout.script) {
+            combinedScript += layout.script + '\n';
+        }
+        if (page.script) {
+            combinedScript += page.script;
+        }
 
         // Determine output path
         const slug = page.slug || 'index';
-        const outputFile = slug === 'index' || slug === ''
-            ? path.join(this.outputPath, 'index.html')
-            : path.join(this.outputPath, slug, 'index.html');
+        const pageDir = slug === 'index' || slug === ''
+            ? this.outputPath
+            : path.join(this.outputPath, slug);
 
         // Ensure directory exists
-        await fs.ensureDir(path.dirname(outputFile));
+        await fs.ensureDir(pageDir);
 
-        // Write file
-        await fs.writeFile(outputFile, html);
-    }
+        // Add style and script links to HTML if needed
+        if (combinedStyle.trim()) {
+            // Write style.css
+            await fs.writeFile(path.join(pageDir, 'style.css'), combinedStyle);
 
-    /**
-     * Render a template with Pug or plain HTML
-     */
-    renderTemplate(template, data) {
-        // Check if it's Pug
-        if (template.includes('doctype') || template.match(/^\s*\w+\(/m)) {
-            try {
-                return pug.render(template, data);
-            } catch (e) {
-                // Fallback to plain HTML
-                return template;
+            // Add link to head if not already present
+            if (!html.includes('style.css')) {
+                html = html.replace('</head>', '    <link rel="stylesheet" href="style.css">\n</head>');
             }
         }
-        return template;
+
+        if (combinedScript.trim()) {
+            // Write script.js
+            await fs.writeFile(path.join(pageDir, 'script.js'), combinedScript);
+
+            // Add script tag if not already present
+            if (!html.includes('script.js')) {
+                html = html.replace('</body>', '    <script src="script.js"></script>\n</body>');
+            }
+        }
+
+        // Write index.html
+        await fs.writeFile(path.join(pageDir, 'index.html'), html);
     }
 
     /**
@@ -189,7 +302,10 @@ class SiteBuilder {
             const regex = new RegExp(`<${tagName}[^>]*>(.*?)<\/${tagName}>|<${tagName}[^>]*\\/>`, 'gi');
 
             html = html.replace(regex, (match) => {
-                let componentHtml = component.html || '';
+                // Compile component markup
+                const componentMarkup = component.body || component.html || '';
+                const componentLang = component.lang || 'html';
+                let componentHtml = this.compileMarkup(componentMarkup, componentLang, data);
                 componentHtml = this.replacePlaceholders(componentHtml, data);
                 return componentHtml;
             });
@@ -200,7 +316,7 @@ class SiteBuilder {
     /**
      * Get default HTML template
      */
-    getDefaultTemplate(data) {
+    getDefaultTemplate(data, pageBody) {
         return `<!DOCTYPE html>
 <html lang="en">
 <head>
@@ -214,7 +330,7 @@ class SiteBuilder {
     <div class="container py-5">
         <h1>${data.page.title}</h1>
         <div class="content">
-            ${data.page.content || ''}
+            ${pageBody || ''}
         </div>
     </div>
     <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>

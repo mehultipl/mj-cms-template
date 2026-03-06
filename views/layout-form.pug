@@ -21,36 +21,108 @@ block content
                     .mb-3
                         label.form-label Description
                         input.form-control#description(type="text" placeholder="Layout description")
+
+                    //- Markup Section
                     .mb-3
-                        label.form-label HTML Template
+                        .d-flex.justify-content-between.align-items-center.mb-2
+                            label.form-label.mb-0 Markup
+                            .btn-group.btn-group-sm(role="group")
+                                input.btn-check#langHtml(type="radio" name="markupLang" value="html" checked)
+                                label.btn.btn-outline-primary(for="langHtml") HTML
+                                input.btn-check#langPug(type="radio" name="markupLang" value="pug")
+                                label.btn.btn-outline-primary(for="langPug") Pug
                         textarea#htmlContent
+
+                    //- Style Section
                     .mb-3
-                        label.form-label CSS Styles
+                        .d-flex.justify-content-between.align-items-center.mb-2
+                            label.form-label.mb-0 Style
+                            .btn-group.btn-group-sm(role="group")
+                                input.btn-check#styleCss(type="radio" name="styleLang" value="css" checked)
+                                label.btn.btn-outline-success(for="styleCss") CSS
+                                input.btn-check#styleStylus(type="radio" name="styleLang" value="stylus")
+                                label.btn.btn-outline-success(for="styleStylus") Stylus
                         textarea#cssContent
+
+                    //- Script Section
+                    .mb-3
+                        label.form-label Script (JavaScript)
+                        textarea#scriptContent
 
         .col-md-4
             .card.border-0.shadow-sm
                 .card-header.bg-white
-                    h6.mb-0 Help
+                    h6.mb-0 Template Variables
                 .card-body
-                    p.text-muted Use <code>{{content}}</code> placeholder for page content
-                    p.text-muted Use <code>{{title}}</code> for page title
-                    p.text-muted Use <code>{{site.name}}</code> for site name
+                    p.text-muted.small
+                        strong Pug Syntax:
+                    ul.text-muted.small
+                        li
+                            code !{page.body}
+                            |  - Page content (unescaped)
+                        li
+                            code #{page.title}
+                            |  - Page title
+                        li
+                            code #{site.name}
+                            |  - Site name
+                    hr
+                    p.text-muted.small
+                        strong HTML/Placeholder Syntax:
+                    ul.text-muted.small
+                        li
+                            code {{content}}
+                            |  - Page content
+                        li
+                            code {{page.title}}
+                            |  - Page title
+                        li
+                            code {{site.name}}
+                            |  - Site name
 
 block scripts
     script.
-        let htmlEditor, cssEditor;
+        let htmlEditor, cssEditor, scriptEditor;
         let layoutId = '#{layoutId || ""}';
+        let currentMarkupLang = 'html';
+        let currentStyleLang = 'css';
 
         document.addEventListener('DOMContentLoaded', function() {
+            // Initialize CodeMirror editors
             htmlEditor = CodeMirror.fromTextArea(document.getElementById('htmlContent'), {
                 mode: 'htmlmixed',
-                lineNumbers: true
+                lineNumbers: true,
+                lineWrapping: true,
+                theme: 'default'
             });
 
             cssEditor = CodeMirror.fromTextArea(document.getElementById('cssContent'), {
                 mode: 'css',
-                lineNumbers: true
+                lineNumbers: true,
+                lineWrapping: true,
+                theme: 'default'
+            });
+
+            scriptEditor = CodeMirror.fromTextArea(document.getElementById('scriptContent'), {
+                mode: 'javascript',
+                lineNumbers: true,
+                lineWrapping: true,
+                theme: 'default'
+            });
+
+            // Language switchers
+            document.querySelectorAll('input[name="markupLang"]').forEach(radio => {
+                radio.addEventListener('change', function() {
+                    currentMarkupLang = this.value;
+                    htmlEditor.setOption('mode', this.value === 'pug' ? 'pug' : 'htmlmixed');
+                });
+            });
+
+            document.querySelectorAll('input[name="styleLang"]').forEach(radio => {
+                radio.addEventListener('change', function() {
+                    currentStyleLang = this.value;
+                    cssEditor.setOption('mode', this.value === 'stylus' ? 'stylus' : 'css');
+                });
             });
 
             if (layoutId) {
@@ -65,8 +137,26 @@ block scripts
                 const layout = await response.json();
                 document.getElementById('name').value = layout.name || '';
                 document.getElementById('description').value = layout.description || '';
-                htmlEditor.setValue(layout.html || '');
-                cssEditor.setValue(layout.css || '');
+                htmlEditor.setValue(layout.body || layout.html || '');
+                cssEditor.setValue(layout.style || layout.css || '');
+                scriptEditor.setValue(layout.script || '');
+
+                // Set language selectors
+                if (layout.lang === 'pug') {
+                    document.getElementById('langPug').checked = true;
+                    currentMarkupLang = 'pug';
+                    htmlEditor.setOption('mode', 'pug');
+                } else {
+                    document.getElementById('langHtml').checked = true;
+                }
+
+                if (layout.styleLang === 'stylus') {
+                    document.getElementById('styleStylus').checked = true;
+                    currentStyleLang = 'stylus';
+                    cssEditor.setOption('mode', 'stylus');
+                } else {
+                    document.getElementById('styleCss').checked = true;
+                }
             } catch (error) {
                 console.error('Error loading layout:', error);
             }
@@ -76,6 +166,12 @@ block scripts
             const data = {
                 name: document.getElementById('name').value,
                 description: document.getElementById('description').value,
+                body: htmlEditor.getValue(),
+                lang: currentMarkupLang,
+                style: cssEditor.getValue(),
+                styleLang: currentStyleLang,
+                script: scriptEditor.getValue(),
+                // Keep backward compatibility
                 html: htmlEditor.getValue(),
                 css: cssEditor.getValue()
             };

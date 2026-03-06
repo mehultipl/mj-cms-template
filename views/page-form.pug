@@ -15,17 +15,42 @@ block content
         .col-md-8
             .card.border-0.shadow-sm.mb-4
                 .card-body
+                    .row.mb-3
+                        .col-md-6
+                            label.form-label Title
+                            input.form-control#title(type="text" placeholder="Page title")
+                        .col-md-6
+                            label.form-label Slug
+                            .input-group
+                                span.input-group-text /
+                                input.form-control#slug(type="text" placeholder="page-url")
+
+                    //- Markup Section
                     .mb-3
-                        label.form-label Title
-                        input.form-control#title(type="text" placeholder="Page title")
-                    .mb-3
-                        label.form-label Slug
-                        .input-group
-                            span.input-group-text /
-                            input.form-control#slug(type="text" placeholder="page-url")
-                    .mb-3
-                        label.form-label Content
+                        .d-flex.justify-content-between.align-items-center.mb-2
+                            label.form-label.mb-0 Markup
+                            .btn-group.btn-group-sm(role="group")
+                                input.btn-check#langHtml(type="radio" name="markupLang" value="html" checked)
+                                label.btn.btn-outline-primary(for="langHtml") HTML
+                                input.btn-check#langPug(type="radio" name="markupLang" value="pug")
+                                label.btn.btn-outline-primary(for="langPug") Pug
                         textarea#content
+
+                    //- Style Section
+                    .mb-3
+                        .d-flex.justify-content-between.align-items-center.mb-2
+                            label.form-label.mb-0 Style
+                            .btn-group.btn-group-sm(role="group")
+                                input.btn-check#styleCss(type="radio" name="styleLang" value="css" checked)
+                                label.btn.btn-outline-success(for="styleCss") CSS
+                                input.btn-check#styleStylus(type="radio" name="styleLang" value="stylus")
+                                label.btn.btn-outline-success(for="styleStylus") Stylus
+                        textarea#styleContent
+
+                    //- Script Section
+                    .mb-3
+                        label.form-label Script (JavaScript)
+                        textarea#scriptContent
 
             .card.border-0.shadow-sm
                 .card-header.bg-white
@@ -60,16 +85,66 @@ block content
                             option(value="about") About
                             option(value="contact") Contact
 
+            .card.border-0.shadow-sm
+                .card-header.bg-white
+                    h6.mb-0 Template Variables
+                .card-body
+                    p.text-muted.small
+                        strong Pug:
+                        |  Use
+                        code #{site.name}
+                        | ,
+                        code #{page.title}
+                    p.text-muted.small
+                        strong HTML:
+                        |  Use
+                        code {{site.name}}
+                        | ,
+                        code {{page.title}}
+
 block scripts
     script.
-        let editor;
+        let contentEditor, styleEditor, scriptEditor;
         let pageId = '#{pageId || ""}';
+        let currentMarkupLang = 'html';
+        let currentStyleLang = 'css';
 
         document.addEventListener('DOMContentLoaded', function() {
-            editor = CodeMirror.fromTextArea(document.getElementById('content'), {
+            // Initialize CodeMirror editors
+            contentEditor = CodeMirror.fromTextArea(document.getElementById('content'), {
                 mode: 'htmlmixed',
                 lineNumbers: true,
+                lineWrapping: true,
                 theme: 'default'
+            });
+
+            styleEditor = CodeMirror.fromTextArea(document.getElementById('styleContent'), {
+                mode: 'css',
+                lineNumbers: true,
+                lineWrapping: true,
+                theme: 'default'
+            });
+
+            scriptEditor = CodeMirror.fromTextArea(document.getElementById('scriptContent'), {
+                mode: 'javascript',
+                lineNumbers: true,
+                lineWrapping: true,
+                theme: 'default'
+            });
+
+            // Language switchers
+            document.querySelectorAll('input[name="markupLang"]').forEach(radio => {
+                radio.addEventListener('change', function() {
+                    currentMarkupLang = this.value;
+                    contentEditor.setOption('mode', this.value === 'pug' ? 'pug' : 'htmlmixed');
+                });
+            });
+
+            document.querySelectorAll('input[name="styleLang"]').forEach(radio => {
+                radio.addEventListener('change', function() {
+                    currentStyleLang = this.value;
+                    styleEditor.setOption('mode', this.value === 'stylus' ? 'stylus' : 'css');
+                });
             });
 
             // Auto-generate slug from title
@@ -115,12 +190,31 @@ block scripts
 
                 document.getElementById('title').value = page.title || '';
                 document.getElementById('slug').value = page.slug || '';
-                editor.setValue(page.content || '');
+                contentEditor.setValue(page.body || page.content || '');
+                styleEditor.setValue(page.style || '');
+                scriptEditor.setValue(page.script || '');
                 document.getElementById('status').value = page.status || 'draft';
                 document.getElementById('layout').value = page.layout || 'default';
                 document.getElementById('template').value = page.template || '';
                 document.getElementById('metaTitle').value = page.metaTitle || '';
                 document.getElementById('metaDescription').value = page.metaDescription || '';
+
+                // Set language selectors
+                if (page.lang === 'pug') {
+                    document.getElementById('langPug').checked = true;
+                    currentMarkupLang = 'pug';
+                    contentEditor.setOption('mode', 'pug');
+                } else {
+                    document.getElementById('langHtml').checked = true;
+                }
+
+                if (page.styleLang === 'stylus') {
+                    document.getElementById('styleStylus').checked = true;
+                    currentStyleLang = 'stylus';
+                    styleEditor.setOption('mode', 'stylus');
+                } else {
+                    document.getElementById('styleCss').checked = true;
+                }
             } catch (error) {
                 console.error('Error loading page:', error);
                 alert('Error loading page');
@@ -131,12 +225,18 @@ block scripts
             const data = {
                 title: document.getElementById('title').value,
                 slug: document.getElementById('slug').value,
-                content: editor.getValue(),
+                body: contentEditor.getValue(),
+                lang: currentMarkupLang,
+                style: styleEditor.getValue(),
+                styleLang: currentStyleLang,
+                script: scriptEditor.getValue(),
                 status: document.getElementById('status').value,
                 layout: document.getElementById('layout').value,
                 template: document.getElementById('template').value,
                 metaTitle: document.getElementById('metaTitle').value,
-                metaDescription: document.getElementById('metaDescription').value
+                metaDescription: document.getElementById('metaDescription').value,
+                // Keep backward compatibility
+                content: contentEditor.getValue()
             };
 
             try {
