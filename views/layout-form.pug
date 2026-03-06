@@ -58,26 +58,26 @@ block content
                         strong Pug Syntax:
                     ul.text-muted.small
                         li
-                            code !{page.body}
+                            code= '!{page.body}'
                             |  - Page content (unescaped)
                         li
-                            code #{page.title}
+                            code= '#{page.title}'
                             |  - Page title
                         li
-                            code #{site.name}
+                            code= '#{site.name}'
                             |  - Site name
                     hr
                     p.text-muted.small
                         strong HTML/Placeholder Syntax:
                     ul.text-muted.small
                         li
-                            code {{content}}
+                            code= '{{content}}'
                             |  - Page content
                         li
-                            code {{page.title}}
+                            code= '{{page.title}}'
                             |  - Page title
                         li
-                            code {{site.name}}
+                            code= '{{site.name}}'
                             |  - Site name
 
 block scripts
